@@ -1,3 +1,1 @@
-# Booting
-
-*todo*
+# Part One: Booting
