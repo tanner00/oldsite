@@ -4,4 +4,4 @@ This project is intended as both a learning experience for myself and the reader
 
 The full code of the OS is hosted [here](add link).
 
-[Part One: Booting](part01.md)
+[Part One: Booting](PART_01.md)

@@ -61,8 +61,7 @@ This very simple code will merely boot and loop forever. The first line of code 
 
 A few caveats to this function are that it can't cross a 64 KiB boundary and some BIOSes will only read up to 127 sectors per int 0x13 call. The call cannot correctly read past a 64 KiB boundary due to the Segmentation in 16-bit Real Mode as explained in [Appendix A](https://todo.com) the offset part of the "segment:offset" address would overflow as it is just 16 bits [^4]. The "127 sectors" restriction is a shortcoming of some [Phoenix](https://en.wikipedia.org/wiki/Phoenix_Technologies) BIOSes.
 
-<details><summary>Commented code to use this BIOS function</summary>
-<p>
+#### Commented code for loading 63 sectors
 ```assembly
 use16
 org 0x7c00
@@ -121,21 +120,17 @@ int13_error_msg: db 'Extended Read Failure... Halting', 0
 times (510 - ($ - $$)) db 0
 dw 0xaa55
 ```
-</p>
-</details>
 
 If you run this code with your current commands to build and run the OS, your code will hit problems at instruction "jc error_and_die". This is because QEMU is trying to load the sectors you requested, but there weren't enough sectors to read in the file you supplied (build/kernel.bin). The solution to this I'm using currently is to pad the kernel.bin file with zeros so QEMU has 63 sectors of data to read. A more sophisticated solution would be to write a program which determines the size of the kernel and make modifications to the disk_address_packet sectors field dynamically so as to not read unneccessary sectors.
 
-<details><summary>Changes to the build process</summary>
-<p>
+#### Changes to the build process
+
 ```bash
-# Write zeros for 64 (63+1 for MBR) sectors
+# Write zeros for 64 (+1 for MBR) sectors
 dd if=/dev/zero of=build/kernel.bin bs=512 count=64
 # conv=notrunc prevents dd from truncating the file to size 0 before it does the write.
 dd if=build/boot.bin of=build/kernel.bin bs=512 conv=notrunc
 ```
-</p>
-</details>
 
 [^1]: The Master Boot Record should also store information on how the partitions of the hard drive are organized. Our OS's code will ignore this for the time being.
 [^2]: A word refers to 16-bits of contigious memory.
