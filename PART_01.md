@@ -8,7 +8,7 @@ To build and run this code you are going to want to download [FASM] and QEMU. As
 
 The Basic Input/Output System (BIOS) is a piece of firmware installed onto your computer to check and initialize the hardware and also to find executable code on the hard drive. The code on the hard drive is called the Master Boot Record [^1] (MBR) and it must be exactly 512 bytes at the very beginning of the hard drive with the word [^2] 0xaa55 at offset 510. The BIOS will load our code at address 0x7c00 and jump to it.
 
-```assembly
+```nasm
 use16
 org 0x7c00
 
@@ -62,7 +62,7 @@ This very simple code will merely boot and loop forever. The first line of code 
 A few caveats to this function are that it can't cross a 64 KiB boundary and some BIOSes will only read up to 127 sectors per int 0x13 call. The call cannot correctly read past a 64 KiB boundary due to the Segmentation in 16-bit Real Mode as explained in [Appendix A](https://todo.com) the offset part of the "segment:offset" address would overflow as it is just 16 bits [^4]. The "127 sectors" restriction is a shortcoming of some [Phoenix](https://en.wikipedia.org/wiki/Phoenix_Technologies) BIOSes.
 
 #### Commented code for loading 63 sectors
-```assembly
+```nasm
 use16
 org 0x7c00
 
@@ -108,7 +108,9 @@ disk_address_packet:
 	;; Must be 0
 	db 0
 	;; # sectors to load.
-	;; This value will most likely change as the kernel grows larger, but it is chosen now because it will not cause the read to pass over a 64 KiB boundary and the binary of the kernel will be exactly 32 KiB (63 * 512 (bytes per sector) + 512 (MBR).
+	;; This value will most likely change as the kernel grows larger,
+	;; but it is chosen now because it will not cause the read to pass over a 64 KiB boundary and the
+	;; binary of the kernel will be exactly 32 KiB (63 * 512 (bytes per sector) + 512 (MBR).
 	dw 63
 	;; segment:offset of where to place the sectors
 	dd 0x7e00
