@@ -1,3 +1,4 @@
 theme: jekyll-theme-minimal
 title: Creating an Operating System
 description: In Assembly!
+highlighter: rouge
