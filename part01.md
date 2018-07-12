@@ -29,6 +29,7 @@ This very simple code will merely boot and loop forever. The first line of code 
 |DS:SI   |segment:offset address of the Disk Address Packet|
 
 #### Disk Address Packet
+
 | Bytes      | Use                                                 |
 |:----------:|-----------------------------------------------------|
 | 0x00       | Size of this packet                                 |
@@ -40,10 +41,3 @@ This very simple code will merely boot and loop forever. The first line of code 
 [^1]: The Master Boot Record should also store information on how the partitions of the hard drive are organized. Our OS's code will ignore this for the time being.
 [^2]: A word refers to 16-bits of contigious memory.
 [^3]: Hard drive speak for 512 contigious bytes.
-
-
-
-
-
-
-
