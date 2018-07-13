@@ -8,7 +8,7 @@ To build and run this code you are going to want to download [FASM] and QEMU. As
 
 The Basic Input/Output System (BIOS) is a piece of firmware installed onto your computer to check and initialize the hardware and also to find executable code on the hard drive. The code on the hard drive is called the Master Boot Record [^1] (MBR) and it must be exactly 512 bytes at the very beginning of the hard drive with the word [^2] 0xaa55 at offset 510. The BIOS will load our code at address 0x7c00 and jump to it.
 
-```nasm
+```fasm
 use16
 org 0x7c00
 
@@ -20,7 +20,7 @@ dw 0xaa55
 
 ##### How do I build and run it? (I suggest you automate this by creating a [Makefile](https://www.gnu.org/software/make/manual/html_node/index.html#Top))
 ```bash
-# Don't clutter your source code!
+# Don't clutter your code!
 mkdir build
 # Compile it
 fasm boot.asm build/boot.bin
@@ -62,14 +62,17 @@ This very simple code will merely boot and loop forever. The first line of code 
 A few caveats to this function are that it can't cross a 64 KiB boundary and some BIOSes will only read up to 127 sectors per int 0x13 call. The call cannot correctly read past a 64 KiB boundary due to the Segmentation in 16-bit Real Mode as explained in [Appendix A](https://todo.com) the offset part of the "segment:offset" address would overflow as it is just 16 bits [^4]. The "127 sectors" restriction is a shortcoming of some [Phoenix](https://en.wikipedia.org/wiki/Phoenix_Technologies) BIOSes.
 
 #### Commented code for loading 63 sectors
-```nasm
+
+```fasm
 use16
 org 0x7c00
 
-;; Interrupts are not necessary here and must be disabled before entering Protected Mode (to come later).
+;; Interrupts are not necessary here and must be disabled before entering
+;; Protected Mode (to come later).
 cli
 
-;; DS is 0 because disk_address_packet's address is somewhere between 0x7c00..0x7e00 which is in segment 0.
+;; DS is 0 because disk_address_packet's address is somewhere between
+;; 0x7c00..0x7e00 which is in segment 0.
 xor ax, ax
 mov ds, ax
 mov si, disk_address_packet
@@ -84,20 +87,22 @@ jmp $
 
 error_and_die:
 	;; lodsb reads value at address in si to register al
-	;; it increments (or decrements if the direction flag is set) the address by 1 for each call to lodsb
+	;; it increments (or decrements if the direction flag is set)
+	;; the address by 1 for each call to lodsb
 	lodsb
 	;; al = 0 signifies the end of the string
 	test al, al
 	jz @f
 
 	;; int 0x10 is for video services.
-	;; ah=0xe selects the function for writing characters to the screen
-	;; al is the character to write to the screen which is loaded by lodsb.
+	;; ah=0xe selects the function for writing characters to the
+	;; screen al is the character to write to the screen which is
+	;; loaded by lodsb.
 	mov ah, 0xe
 	int 0x10
 	jmp error_and_die
 @@:
-	; Loop forever
+	;; Loop forever
 	cli
 	hlt
 	jmp @b
@@ -108,13 +113,15 @@ disk_address_packet:
 	;; Must be 0
 	db 0
 	;; # sectors to load.
-	;; This value will most likely change as the kernel grows larger,
-	;; but it is chosen now because it will not cause the read to pass over a 64 KiB boundary and the
-	;; binary of the kernel will be exactly 32 KiB (63 * 512 (bytes per sector) + 512 (MBR).
+	;; This value will most likely change as the kernel grows larger, but
+	;; it is chosen now because it will not cause the read to pass over a
+	;; 64 KiB boundary and the binary of the kernel will be exactly 32 KiB
+	;; (63 * 512 (bytes per sector) + 512 (MBR).
 	dw 63
 	;; segment:offset of where to place the sectors
 	dd 0x7e00
-	;; LBA of the starting sector to read. The MBR is at LBA 0 and the rest of the code starts at LBA 1.
+	;; LBA of the starting sector to read. The MBR is at LBA 0 and the rest
+	;; of the code starts at LBA 1.
 	dq 1
 
 int13_error_msg: db 'Extended Read Failure... Halting', 0
@@ -123,7 +130,7 @@ times (510 - ($ - $$)) db 0
 dw 0xaa55
 ```
 
-If you run this code with your current commands to build and run the OS, your code will hit problems at instruction "jc error_and_die". This is because QEMU is trying to load the sectors you requested, but there weren't enough sectors to read in the file you supplied (build/kernel.bin). The solution to this I'm using currently is to pad the kernel.bin file with zeros so QEMU has 63 sectors of data to read. A more sophisticated solution would be to write a program which determines the size of the kernel and make modifications to the disk_address_packet sectors field dynamically so as to not read unneccessary sectors.
+If you run this code with your current commands to build and run the OS, your code will hit problems at instruction "jc error_and_die". This is because QEMU is trying to load the sectors you requested, but there weren't enough sectors to read in the file you supplied (build/kernel.bin). The solution to this I'm using currently is to pad the kernel.bin file with zeros so QEMU has 63 sectors of data to read. A more sophisticated solution would be to write a program which determines the size of the kernel and make modifications to the disk_address_packet sectors field dynamically so as to not read unnecessary sectors.
 
 #### Changes to the build process
 
@@ -135,6 +142,6 @@ dd if=build/boot.bin of=build/kernel.bin bs=512 conv=notrunc
 ```
 
 [^1]: The Master Boot Record should also store information on how the partitions of the hard drive are organized. Our OS's code will ignore this for the time being.
-[^2]: A word refers to 16-bits of contigious memory.
-[^3]: Hard drive speak for 512 contigious bytes.
+[^2]: A word refers to 16-bits of contiguous memory.
+[^3]: Hard drive speak for 512 contiguous bytes.
 [^4]: 16 bits can hold a maximum value of 0xffff. This is equivalent to 64 KiB.
