@@ -2,11 +2,14 @@
 
 ## Prerequisites
 
-To build and run this code you are going to want to download [FASM] and QEMU. Assuming you are on an Ubuntu-based system you can simply type `sudo apt-get install qemu fasm` into your terminal to install them. I will explain how to use them as needed.
+<!-- start articles with overview of what is going to be shown. split theory and implementation !-->
+<!-- Mention that this might be a little more hand-holdy than later articles? (then split into theory and implementation?) !-->
+
+To build and run this code you are going to want to download [FASM](https://flatassembler.net/) and [QEMU](https://www.qemu.org/). Assuming you are on an Ubuntu-based system you can simply type `sudo apt-get install qemu fasm` into your terminal to install them. I will explain how to use them as needed.
 
 ## Early days
 
-The Basic Input/Output System (BIOS) is a piece of firmware installed onto your computer to check and initialize the hardware and also to find executable code on the hard drive. The code on the hard drive is called the Master Boot Record [^1] (MBR) and it must be exactly 512 bytes at the very beginning of the hard drive with the word [^2] 0xaa55 at offset 510. The BIOS will load our code at address 0x7c00 and jump to it.
+The Basic Input/Output System (BIOS) is a piece of firmware installed onto your computer to check and initialize the hardware and to find executable code on the hard drive. The code it searches for on the hard drive is called the Master Boot Record[^1] (MBR) and it must be exactly 512 bytes at the very beginning of the hard drive with the word[^2] 0xaa55 at offset 510. The BIOS will load our code at address 0x7c00 and jump to it.
 
 ```nasm
 use16
@@ -32,7 +35,7 @@ dd if=build/boot.bin of=build/kernel.bin bs=512
 qemu-system-i386 -drive format=raw,file=build/kernel.bin
 ```
 
-This very simple code will merely boot and loop forever. The first line of code reads `use16` because your x86 CPU starts up in something called 16-bit Real Mode. Staying 16-bit Real Mode is undesirable because using it means we can only use 1 MiB (+ 64 KiB) of memory and can't use any hardware-based memory protection to stop processes from reading from and writing to other processes memory. Through the release of the [80286](https://en.wikipedia.org/wiki/Intel_80286]), Intel provided Protected Mode which was later enhanced by [80386](https://en.wikipedia.org/wiki/Intel_80386) to have 32-bit addresses and hardware-based memory protection. Before we switch to this mode, it's necessary to load the rest of our OS from the hard drive because the MBR is limited to 512 bytes. We must do this before we switch to Protected Mode because the BIOS functions used to load the OS will not be available in 32-bit Protected Mode. There are multiple BIOS functions you could use to load sectors [^3], but I have chosen to use the "Extended Read" function. It is called by configuring registers and memory according to the chart below.
+This very simple code will merely boot and loop forever. The first line of code reads `use16` because your x86 CPU starts up in something called 16-bit Real Mode. Staying 16-bit Real Mode is undesirable because using it means we can only access 1 MiB (+ 64 KiB) of memory and can't use any hardware-based memory protection to stop processes from reading from and writing to other processes memory. Through the release of the [80286](https://en.wikipedia.org/wiki/Intel_80286]), Intel provided Protected Mode which was later enhanced by the [80386](https://en.wikipedia.org/wiki/Intel_80386) to have 32-bit addresses and hardware-based memory protection. Before we switch to this mode, it's necessary to load the rest of our OS from the hard drive because the MBR is limited to 512 bytes. We must do this before we switch to Protected Mode because the BIOS functions used to load the OS will not be available in 32-bit Protected Mode. There are multiple BIOS functions you could use to load sectors[^3], but I have chosen to use the "Extended Read" function. It is called by configuring registers and memory according to the chart below.
 
 ### Int 0x13
 
@@ -59,7 +62,7 @@ This very simple code will merely boot and loop forever. The first line of code 
 | CF               | Set on error |
 | AH               | Error code (values [here](http://www.delorie.com/djgpp/doc/rbinter/it/34/2.html))|
 
-A few caveats to this function are that it can't cross a 64 KiB boundary and some BIOSes will only read up to 127 sectors per int 0x13 call. The call cannot correctly read past a 64 KiB boundary due to the Segmentation in 16-bit Real Mode as explained in [Appendix A](https://todo.com) the offset part of the "segment:offset" address would overflow as it is just 16 bits [^4]. The "127 sectors" restriction is a shortcoming of some [Phoenix](https://en.wikipedia.org/wiki/Phoenix_Technologies) BIOSes.
+A few caveats to this function are that it can't cross a 64 KiB boundary and some BIOSes will only read up to 127 sectors per int 0x13 call. The call cannot correctly read past a 64 KiB boundary due to the Segmentation in 16-bit Real Mode (The offset part of the "segment:offset" address would overflow as it is just 16 bits[^4], which the BIOS doesn't take into account). The "127 sectors" restriction is a shortcoming of some [Phoenix](https://en.wikipedia.org/wiki/Phoenix_Technologies) BIOSes.
 
 #### Commented code for loading 63 sectors
 
@@ -78,8 +81,10 @@ mov ds, ax
 mov si, disk_address_packet
 
 mov ah, 0x42
+;; Read!
 int 0x13
 
+;; Display an error message and halt if anything goes wrong.
 mov si, int13_error_msg
 jc error_and_die
 
@@ -143,7 +148,7 @@ dd if=build/boot.bin of=build/kernel.bin bs=512 conv=notrunc
 
 ### A20 line
 
-The A20 line [^5] is a relic of a time gone by. It, like other skeletons in x86's closet, was borne out of the desire for backwards compatibility. It is necessary for someone developing an OS from scratch to enable it because it allows access to all memory above 1 MiB. The method we will use is called the "FAST A20" gate because (in my opinion) it is both easy to use and more importantly faster than other ways to enable the A20 line. It relies on writing to the "System Control Port A" I/O port's second bit to enable the A20 line. This method isn't supported everywhere, so it would be prudent to add other methods. The traditional way involves interfacing with the keyboard controller. Go figure.
+The A20 line[^5] is a relic of a time gone by. It, like other skeletons in x86's closet, was borne out of the desire for backwards compatibility. It is necessary for someone developing an OS from scratch to enable it because it allows access to all memory above 1 MiB. The method we will use is called the "FAST A20" gate because (in my opinion) it is both easy to use and more importantly faster than other ways to enable the A20 line. It relies on writing to the "System Control Port A" I/O port's second bit to enable the A20 line. This method isn't supported everywhere, so it would be prudent to add other methods. The traditional way involves interfacing with the keyboard controller. Go figure.
 
 ```nasm
 ;; Set the second bit of port 0x92 to enable the A20 line
@@ -151,7 +156,7 @@ The A20 line [^5] is a relic of a time gone by. It, like other skeletons in x86'
 ;; Save the current port 0x92 values in al
 in al, 0x92
 
-;; Only write when necessary
+;; Some BIOSes enable the A20 line for you... don't write when they have.
 test al, 10b
 jnz already_enabled
 
@@ -172,4 +177,3 @@ already_enabled:
 [^3]: Hard drive speak for 512 contiguous bytes.
 [^4]: 16 bits can hold a maximum value of 0xffff. This is equivalent to 64 KiB.
 [^5]: The name comes from the fact that it is the 20th (0-based) **A**ddress line.
- 
