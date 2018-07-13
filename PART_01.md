@@ -8,7 +8,7 @@ To build and run this code you are going to want to download [FASM] and QEMU. As
 
 The Basic Input/Output System (BIOS) is a piece of firmware installed onto your computer to check and initialize the hardware and also to find executable code on the hard drive. The code on the hard drive is called the Master Boot Record [^1] (MBR) and it must be exactly 512 bytes at the very beginning of the hard drive with the word [^2] 0xaa55 at offset 510. The BIOS will load our code at address 0x7c00 and jump to it.
 
-```fasm
+```nasm
 use16
 org 0x7c00
 
@@ -63,7 +63,7 @@ A few caveats to this function are that it can't cross a 64 KiB boundary and som
 
 #### Commented code for loading 63 sectors
 
-```fasm
+```nasm
 use16
 org 0x7c00
 
@@ -143,7 +143,7 @@ dd if=build/boot.bin of=build/kernel.bin bs=512 conv=notrunc
 
 ### A20 Line
 
-```fasm
+```nasm
 ;; Set the second bit of port 0x92 to enable the A20 line
 in al, 0x92
 ;; Only write when necessary
