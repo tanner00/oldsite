@@ -34,7 +34,7 @@ qemu-system-i386 -drive format=raw,file=build/kernel.bin
 
 This very simple code will merely boot and loop forever. The first line of code reads `use16` because your x86 CPU starts up in something called 16-bit Real Mode. Staying 16-bit Real Mode is undesirable because using it means we can only use 1 MiB (+ 64 KiB) of memory and can't use any hardware-based memory protection to stop processes from reading from and writing to other processes memory. Through the release of the [80286](https://en.wikipedia.org/wiki/Intel_80286]), Intel provided Protected Mode which was later enhanced by [80386](https://en.wikipedia.org/wiki/Intel_80386) to have 32-bit addresses and hardware-based memory protection. Before we switch to this mode, it's necessary to load the rest of our OS from the hard drive because the MBR is limited to 512 bytes. We must do this before we switch to Protected Mode because the BIOS functions used to load the OS will not be available in 32-bit Protected Mode. There are multiple BIOS functions you could use to load sectors [^3], but I have chosen to use the "Extended Read" function. It is called by configuring registers and memory according to the chart below.
 
-#### Int 0x13
+### Int 0x13
 
 |Register|Value|
 |--------|:---:|
@@ -52,7 +52,7 @@ This very simple code will merely boot and loop forever. The first line of code 
 | 0x04..0x07 | segment:offset address of where to read the sectors |
 | 0x08..0x0f | [LBA](https://en.wikipedia.org/wiki/Logical_block_addressing) of the starting sector, first sector of the drive is 0|
 
-## Return Values
+#### Return Values
 
 | Register         | Meaning      |
 |------------------|--------------|
@@ -139,6 +139,24 @@ If you run this code with your current commands to build and run the OS, your co
 dd if=/dev/zero of=build/kernel.bin bs=512 count=64
 # conv=notrunc prevents dd from truncating the file to size 0 before it does the write.
 dd if=build/boot.bin of=build/kernel.bin bs=512 conv=notrunc
+```
+
+### A20 Line
+
+```fasm
+;; Set the second bit of port 0x92 to enable the A20 line
+in al, 0x92
+;; Only write when necessary
+test al, 10b
+jnz already_enabled
+;; Enable the second bit
+or al, 10b
+;; [Apparently](http://www.win.tue.nl/~aeb/linux/kbd/A20.html) sometimes first
+;; bit will cause a reset
+and al, 11111110b
+;; Solidify enabling the A20 line
+out 0x92, al
+already_enabled:
 ```
 
 [^1]: The Master Boot Record should also store information on how the partitions of the hard drive are organized. Our OS's code will ignore this for the time being.
