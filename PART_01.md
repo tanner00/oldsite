@@ -141,7 +141,9 @@ dd if=/dev/zero of=build/kernel.bin bs=512 count=64
 dd if=build/boot.bin of=build/kernel.bin bs=512 conv=notrunc
 ```
 
-### A20 Line
+### A20 line
+
+The A20 line [^5] is a relic of a time gone by. It, like other skeletons in x86's closet, was born out of the desire for backwards compatibility. It is necessary for someone developing an OS from scratch to enable it because it allows access to all memory above 1 MiB. The method we will use is called the "FAST A20" gate because (in my opinion) it is both easy to use and more importantly faster than other ways to enable the A20 line. This method isn't supported everywhere, so it would be prudent to add other methods. The traditional way involves interfacing with the keyboard controller. Go figure.
 
 ```nasm
 ;; Set the second bit of port 0x92 to enable the A20 line
@@ -163,3 +165,4 @@ already_enabled:
 [^2]: A word refers to 16-bits of contiguous memory.
 [^3]: Hard drive speak for 512 contiguous bytes.
 [^4]: 16 bits can hold a maximum value of 0xffff. This is equivalent to 64 KiB.
+[^5]: The name comes from the fact that it is the 20th (0-based) **A**ddress line.
