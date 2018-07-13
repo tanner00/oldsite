@@ -143,19 +143,25 @@ dd if=build/boot.bin of=build/kernel.bin bs=512 conv=notrunc
 
 ### A20 line
 
-The A20 line [^5] is a relic of a time gone by. It, like other skeletons in x86's closet, was born out of the desire for backwards compatibility. It is necessary for someone developing an OS from scratch to enable it because it allows access to all memory above 1 MiB. The method we will use is called the "FAST A20" gate because (in my opinion) it is both easy to use and more importantly faster than other ways to enable the A20 line. This method isn't supported everywhere, so it would be prudent to add other methods. The traditional way involves interfacing with the keyboard controller. Go figure.
+The A20 line [^5] is a relic of a time gone by. It, like other skeletons in x86's closet, was born out of the desire for backwards compatibility. It is necessary for someone developing an OS from scratch to enable it because it allows access to all memory above 1 MiB. The method we will use is called the "FAST A20" gate because (in my opinion) it is both easy to use and more importantly faster than other ways to enable the A20 line. It relies on writing to the "System Control Port A" I/O port's second bit to enable the A20 line. This method isn't supported everywhere, so it would be prudent to add other methods. The traditional way involves interfacing with the keyboard controller. Go figure.
 
 ```nasm
 ;; Set the second bit of port 0x92 to enable the A20 line
+
+;; Save the current port 0x92 values in al
 in al, 0x92
+
 ;; Only write when necessary
 test al, 10b
 jnz already_enabled
+
 ;; Enable the second bit
 or al, 10b
-;; [Apparently](http://www.win.tue.nl/~aeb/linux/kbd/A20.html) sometimes first
-;; bit will cause a reset
+
+;; According to http://www.win.tue.nl/~aeb/linux/kbd/A20.html, writing to the
+;; first bit causes a reset.
 and al, 11111110b
+
 ;; Solidify enabling the A20 line
 out 0x92, al
 already_enabled:
