@@ -1,15 +1,29 @@
 # Part One: Booting
 
-## Prerequisites
-
 <!-- start articles with overview of what is going to be shown. split theory and implementation !-->
 <!-- Mention that this might be a little more hand-holdy than later articles? (then split into theory and implementation?) !-->
 
+<!-- Glossary list: privilege level, rings, descriptors, segments, a20, etc go through this !-->
+
+## Syllabus
+
+Throughout this article we will develop a large chunk of a special type of program called a bootloader. A bootloader's job is to load the OS, set up a minimal environment for it, and hand off control by jumping to it. This process is highly dependent on the x86 architecture. Below is a partial list of what an x86 bootloader is expected to do.
+
+* Load code from the hard drive.
+* Enable the A20 line.
+* Install a temporary Global Descriptor Table.
+* Enable Protected Mode.
+* Jump to the OS!
+
+Later on we will modify the bootloader to get a map of memory that our OS can use.
+
+### Prerequisites
+
 To build and run this code you are going to want to download [FASM](https://flatassembler.net/) and [QEMU](https://www.qemu.org/). Assuming you are on an Ubuntu-based system you can simply type `sudo apt-get install qemu fasm` into your terminal to install them. I will explain how to use them as needed.
 
-## Early days
+### Early days
 
-The Basic Input/Output System (BIOS) is a piece of firmware installed onto your computer to check and initialize the hardware and to find executable code on the hard drive. The code it searches for on the hard drive is called the Master Boot Record[^1] (MBR) and it must be exactly 512 bytes at the very beginning of the hard drive with the word[^2] 0xaa55 at offset 510. The BIOS will load our code at address 0x7c00 and jump to it.
+The Basic Input/Output System (BIOS) is a piece of firmware installed onto your computer to check and initialize the hardware and to find executable code on the hard drive. The code it searches for on the hard drive is called the Master Boot Record[^1] (MBR) and it must be exactly 512 bytes at the very beginning of the hard drive with the word[^2] 0xaa55 at offset 510. The BIOS will load our code at address 0x7c00 and jump to it. If you need an x86 assembly refresher please read [Appendix A](https://todo.com).
 
 ```nasm
 use16
@@ -172,8 +186,157 @@ out 0x92, al
 already_enabled:
 ```
 
+### The Global Descriptor Table (GDT)
+
+A valid GDT is a prerequisite to enter Protected Mode. Every attempt to read from memory will go through the GDT in order to check if the address is in range and if the code attempting to read the memory has access rights. We will use this structure to flat map the entire memory address space to obviate the need for outdated segments. When our OS starts to develop multitasking we will make changes to this structure, but for now we will set up three simple segment descriptors.
+
+| Bytes        |Use                                              |
+|:------------:|:-----------------------------------------------:|
+| 0x00..0x01   | Limit Low (where the segment of memory ends)    |
+| 0x02..0x03   | Base Low  (where the segment of memory starts)  |
+| 0x04         | Base Medium                                     |
+| 0x05         | Access Byte                                     |
+| 0x06         | Limit High                                      |
+| 0x06         | Flags                                           |
+| 0x07         | Base High                                       |
+
+#### Access Byte
+The 8-bit access byte specifies the restrictions of this memory segment.
+
+|         Name         |  Size  |
+|:--------------------:|:------:|
+| Accessed             | 1 bit  |
+| Readable/Writable    | 1 bit  |
+| Direction/Conforming | 1 bit  |
+| Executable           | 1 bit  |
+| 1                    | 1 bit  |
+| Privilege            | 2 bits |
+| Present              | 1 bit  |
+
+```plaintext
+The first bit is set to 1 if the segment descriptor has been accessed by the CPU.
+
+The second bit is the readable bit for code descriptors and the writable bit for the data descriptors.
+
+* Code descriptor:
+	* If 1, the segment is readable.
+	* If 0, the segment is not readable.
+* Data descriptor:
+	* If 1, the segment is writable.
+	* If 0, the segment is not writable.
+
+The third bit is the conforming bit for code descriptors and the direction bit for data descriptors.
+
+* Code descriptor:
+	* If 1, this code can be executed from lower privilege levels. This would mean that ring 2 could be jumped to from ring 3.
+	* If 0, this code can only be executed from equal privilege levels.
+* Data descriptor:
+	* If 1, the segment grows down (address &gt; limit).
+	* If 0, the segment grows up (address &lt; limit).
+
+The fourth bit is set to one if it is a code descriptor, and zero if it is a data descriptor.
+
+The fifth bit must be set to 1.
+
+The sixth and seventh bits are the privilege bits. These specify the ring level of the segment. 0 represents a kernel descriptor, whereas a 3 would represent a user-level application.
+
+The eighth bit is the present bit which must be set to 1 for every used descriptor.
+```
+
+#### Flags Nibble
+The flags nibble[^6] specifies attributes about the descriptor instead of the segment.
+
+|    Name    |  Size  |
+|:----------:|:------:|
+|0           | 2 bits |
+|Segment Size| 1 bit  |
+|Granulartity| 1 bit  |
+
+```plaintext
+The first and second bits must be set to 0.
+
+The third bit is the size bit
+	* Set to 0 if this descriptor defines a 16-bit Protected Mode segment.
+	* Set to 1 if this descriptor defines a 32-bit Protected Mode segment.
++
+The fourth bit is the granularity bit
+	* Set to 0 if the limit part of the structure is in byte granularity.
+	* Set to 1 if the limit part of the structure is in page granularity.
+```
+
+That's a lot of information about GDT entries (which are only 8 bytes)! I implore you to digest as much as you can, but don't worry if you don't understand the theory before you see the implementation.
+
+### Loading the GDT
+
+The GDT must be loaded by the privileged x86 instruction `lgdt`. It expects an argument (called the GDT Register) which tells it the address in memory of the GDT and how big it is.
+
+#### GDT Register Layout
+|  Name             |   Size  |
+|:-----------------:|:-------:|
+|  Size (minus 1)   | 16 bits |
+|  Address          | 32 bits |
+
+### This OS's use
+
+Our OS presently will only use three simple segment descriptors: one for nothing[^7], one for kernel code, and one for kernel data. They will overlap and span the entire address space because we want the flat memory model us programmers enjoy in the modern era. This will free us from the horrors of worrying having to worry if an address if in range of a specific segment. It's true that using segmentation could allow us to implement a form of memory protection, but we'll see later that there are better options.
+
+##### Commented code of loading a GDT.
+```nasm
+lgdt [gdt_register]
+
+gdt_register:
+	dw gdt_end - gdt - 1
+	dd gdt
+	
+gdt:
+	;; Null Descriptor
+	dq 0
+
+	;; Code Descriptor
+	
+	;; Base: 0
+	;; Limit: 0xffffffff
+	
+	;; Not accessed yet
+	;; Readable
+	;; Must be executed from the same privilege level
+	;; Code descriptor
+	;; Always 1
+	;; Ring 0
+	;; Present
+	dw 0xffff
+	dw 0
+	db 0
+	db 10011010b
+	db 11001111b
+	db 0
+
+	;; Data Descriptor
+	
+	;; Base: 0
+	;; Limit: 0xffffffff
+	
+	;; Not accessed yet
+	;; Writable
+	;; Grows up. Address &lt; Limit
+	;; Data descriptor
+	;; Always 1
+	;; Ring 0
+	;; Present
+	dw 0xffff
+	dw 0
+	db 0
+	db 10010010b
+	db 11001111b
+	db 0
+```
+
+<!--implicit 0x10:address in memory!-->
+
 [^1]: The Master Boot Record should also store information on how the partitions of the hard drive are organized. Our OS's code will ignore this for the time being.
 [^2]: A word refers to 16-bits of contiguous memory.
 [^3]: Hard drive speak for 512 contiguous bytes.
 [^4]: 16 bits can hold a maximum value of 0xffff. This is equivalent to 64 KiB.
 [^5]: The name comes from the fact that it is the 20th (0-based) **A**ddress line.
+[^6]: A nibble is 4 bits.
+[^7]: Why? Because Intel told us to do so!
