@@ -191,7 +191,7 @@ already_enabled:
 A valid GDT is a prerequisite to enter Protected Mode. Every attempt to read from memory will go through the GDT in order to check if the address is in range and if the code attempting to read the memory has access rights. We will use this structure to flat map the entire memory address space to obviate the need for outdated segments. When our OS starts to develop multitasking we will make changes to this structure, but for now we will set up three simple segment descriptors.
 
 | Bytes        |Use                                              |
-|:------------:|:-----------------------------------------------:|
+|:------------:|:------------------------------------------------|
 | 0x00..0x01   | Limit Low (where the segment of memory ends)    |
 | 0x02..0x03   | Base Low  (where the segment of memory starts)  |
 | 0x04         | Base Medium                                     |
@@ -204,7 +204,7 @@ A valid GDT is a prerequisite to enter Protected Mode. Every attempt to read fro
 The 8-bit access byte specifies the restrictions of this memory segment.
 
 |         Name         |  Size  |
-|:--------------------:|:------:|
+|:---------------------|:------:|
 | Accessed             | 1 bit  |
 | Readable/Writable    | 1 bit  |
 | Direction/Conforming | 1 bit  |
@@ -231,8 +231,8 @@ The third bit is the conforming bit for code descriptors and the direction bit f
 	* If 1, this code can be executed from lower privilege levels. This would mean that ring 2 could be jumped to from ring 3.
 	* If 0, this code can only be executed from equal privilege levels.
 * Data descriptor:
-	* If 1, the segment grows down (address &gt; limit).
-	* If 0, the segment grows up (address &lt; limit).
+	* If 1, the segment grows down (address > limit).
+	* If 0, the segment grows up (address < limit).
 
 The fourth bit is set to one if it is a code descriptor, and zero if it is a data descriptor.
 
@@ -247,7 +247,7 @@ The eighth bit is the present bit which must be set to 1 for every used descript
 The flags nibble[^6] specifies attributes about the descriptor instead of the segment.
 
 |    Name    |  Size  |
-|:----------:|:------:|
+|------------|:------:|
 |0           | 2 bits |
 |Segment Size| 1 bit  |
 |Granulartity| 1 bit  |
@@ -258,7 +258,7 @@ The first and second bits must be set to 0.
 The third bit is the size bit
 	* Set to 0 if this descriptor defines a 16-bit Protected Mode segment.
 	* Set to 1 if this descriptor defines a 32-bit Protected Mode segment.
-+
+
 The fourth bit is the granularity bit
 	* Set to 0 if the limit part of the structure is in byte granularity.
 	* Set to 1 if the limit part of the structure is in page granularity.
@@ -271,6 +271,7 @@ That's a lot of information about GDT entries (which are only 8 bytes)! I implor
 The GDT must be loaded by the privileged x86 instruction `lgdt`. It expects an argument (called the GDT Register) which tells it the address in memory of the GDT and how big it is.
 
 #### GDT Register Layout
+
 |  Name             |   Size  |
 |:-----------------:|:-------:|
 |  Size (minus 1)   | 16 bits |
@@ -318,7 +319,7 @@ gdt:
 	
 	;; Not accessed yet
 	;; Writable
-	;; Grows up. Address &lt; Limit
+	;; Grows up; address < limit
 	;; Data descriptor
 	;; Always 1
 	;; Ring 0
